@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Claude Code Digest</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="app-header">
+      <div>
+        <h1>Claude Code Digest</h1>
+        <div id="digest-date" class="date-text"></div>
+      </div>
+      <button id="settings-btn" class="icon-btn" title="Settings">
+        ⚙️
+      </button>
+    </header>
+
+    <section class="controls">
+      <button id="play-all-btn" class="primary-btn">▶ Play All</button>
+      <button id="pause-btn" class="secondary-btn">⏸ Pause</button>
+      <button id="resume-btn" class="secondary-btn">▶ Resume</button>
+      <button id="stop-btn" class="secondary-btn">⏹ Stop</button>
+
+      <div class="speed-row">
+        <label for="speed-select">Speed</label>
+        <select id="speed-select">
+          <option value="0.8">0.8x</option>
+          <option value="1" selected>1.0x</option>
+          <option value="1.2">1.2x</option>
+          <option value="1.5">1.5x</option>
+        </select>
+      </div>
+    </section>
+
+    <main id="digest-container"></main>
+
+    <footer class="app-footer">
+      <span id="last-updated"></span>
+      <div class="footer-actions">
+        <button id="refresh-btn" class="text-btn">↻ Refresh</button>
+        <button id="copy-btn" class="text-btn">📋 Copy summary</button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Simple settings panel stub (for future expansion) -->
+  <div id="settings-panel" class="settings-panel hidden">
+    <div class="settings-header">
+      <h2>Settings</h2>
+      <button id="settings-close-btn" class="icon-btn">✕</button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-row">
+        <label for="theme-toggle">Dark theme</label>
+        <input type="checkbox" id="theme-toggle" checked />
+      </div>
+      <div class="settings-row">
+        <label for="voice-rate">Default speech speed</label>
+        <select id="voice-rate">
+          <option value="0.8">0.8x</option>
+          <option value="1" selected>1.0x</option>
+          <option value="1.2">1.2x</option>
+          <option value="1.5">1.5x</option>
+        </select>
+      </div>
+      <p class="settings-note">
+        Audio uses the browser's built-in speech engine. For higher quality,
+        you could later swap this for an external TTS API.
+      </p>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
