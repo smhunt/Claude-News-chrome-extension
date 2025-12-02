@@ -453,7 +453,7 @@ function initUI() {
   });
 
   themeToggle.addEventListener("change", () => {
-    settings.theme = themeToggle.checked ? "dark" : "dark"; // future: add light
+    settings.theme = themeToggle.checked ? "dark" : "light";
     saveSettings();
   });
 }
