@@ -1,15 +1,23 @@
 {
   "manifest_version": 3,
   "name": "Claude Code Digest",
-  "version": "1.1.0",
-  "description": "Daily Claude Code digest with inline video players and audio playback.",
+  "version": "1.5.0",
+  "description": "Daily Claude Code digest with video playlists, TTS audio, and voice controls.",
   "action": {
     "default_popup": "popup.html",
     "default_title": "Claude Code Digest"
   },
   "permissions": [
-    "storage"
+    "storage",
+    "sidePanel",
+    "contextMenus"
   ],
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

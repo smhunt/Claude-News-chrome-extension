@@ -5,25 +5,18 @@
   <title>Claude Code Digest</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="popup.css" />
+  <link rel="stylesheet" href="panel.css" />
 </head>
-<body>
+<body class="panel-mode">
   <div id="app">
     <header class="app-header">
       <div>
         <h1>Claude Code Digest</h1>
         <div id="digest-date" class="date-text"></div>
       </div>
-      <div class="header-actions">
-        <button id="side-panel-btn" class="icon-btn" title="Open in Side Panel">
-          ⬅
-        </button>
-        <button id="popout-btn" class="icon-btn" title="Open in Window">
-          ↗
-        </button>
-        <button id="settings-btn" class="icon-btn" title="Settings">
-          ⚙️
-        </button>
-      </div>
+      <button id="settings-btn" class="icon-btn" title="Settings">
+        ⚙️
+      </button>
     </header>
 
     <section class="controls">
@@ -73,7 +66,7 @@
     </footer>
   </div>
 
-  <!-- Simple settings panel stub (for future expansion) -->
+  <!-- Settings panel -->
   <div id="settings-panel" class="settings-panel hidden">
     <div class="settings-header">
       <h2>Settings</h2>

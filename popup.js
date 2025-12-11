@@ -122,17 +122,23 @@ const DIGEST_CONTENT = {
 
 const STORAGE_KEYS = {
   STARRED: "ccd_starred_items",
-  SETTINGS: "ccd_settings"
+  SETTINGS: "ccd_settings",
+  PLAYLIST: "ccd_playlist"
 };
 
 let starredItems = new Set();
 let settings = {
   speechRate: 1.0,
+  voiceName: "",
   theme: "dark"
 };
 
+// Playlist: array of video objects { id, title, videoId, url, addedAt }
+let playlist = [];
+
 let currentUtterance = null;
 let currentReadingId = null;
+let availableVoices = [];
 
 // Helpers
 
@@ -143,13 +149,16 @@ function loadStorage() {
       return;
     }
     chrome.storage.local.get(
-      [STORAGE_KEYS.STARRED, STORAGE_KEYS.SETTINGS],
+      [STORAGE_KEYS.STARRED, STORAGE_KEYS.SETTINGS, STORAGE_KEYS.PLAYLIST],
       (res) => {
         if (Array.isArray(res[STORAGE_KEYS.STARRED])) {
           starredItems = new Set(res[STORAGE_KEYS.STARRED]);
         }
         if (res[STORAGE_KEYS.SETTINGS]) {
           settings = { ...settings, ...res[STORAGE_KEYS.SETTINGS] };
+        }
+        if (Array.isArray(res[STORAGE_KEYS.PLAYLIST])) {
+          playlist = res[STORAGE_KEYS.PLAYLIST];
         }
         resolve();
       }
@@ -171,11 +180,162 @@ function saveSettings() {
   });
 }
 
+function savePlaylist() {
+  if (!chrome?.storage?.local) return;
+  chrome.storage.local.set({
+    [STORAGE_KEYS.PLAYLIST]: playlist
+  });
+}
+
+function addToPlaylist(item) {
+  // Check if already in playlist
+  if (playlist.some(p => p.videoId === item.videoId)) {
+    return false;
+  }
+  playlist.push({
+    id: item.id,
+    title: item.title,
+    videoId: item.videoId,
+    url: item.url,
+    summary: item.summary,
+    duration: item.duration,
+    addedAt: Date.now()
+  });
+  savePlaylist();
+  renderPlaylist();
+  return true;
+}
+
+function removeFromPlaylist(videoId) {
+  playlist = playlist.filter(p => p.videoId !== videoId);
+  savePlaylist();
+  renderPlaylist();
+}
+
+function isInPlaylist(videoId) {
+  return playlist.some(p => p.videoId === videoId);
+}
+
+function renderPlaylist() {
+  const container = document.getElementById("playlist-container");
+  if (!container) return;
+
+  if (playlist.length === 0) {
+    container.innerHTML = `
+      <div class="playlist-empty">
+        <p>No videos in playlist</p>
+        <p class="playlist-hint">Click "+ Playlist" on any video to add it</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = "";
+
+  playlist.forEach((item, index) => {
+    const itemEl = document.createElement("div");
+    itemEl.className = "playlist-item";
+    itemEl.innerHTML = `
+      <div class="playlist-item-thumb">
+        <img src="https://img.youtube.com/vi/${item.videoId}/default.jpg" alt="">
+        <span class="playlist-item-index">${index + 1}</span>
+      </div>
+      <div class="playlist-item-info">
+        <a href="${item.url}" target="_blank" class="playlist-item-title">${item.title}</a>
+        <span class="playlist-item-duration">${item.duration || ''}</span>
+      </div>
+      <div class="playlist-item-actions">
+        <button class="playlist-play-btn" data-video-id="${item.videoId}" title="Play">▶</button>
+        <button class="playlist-remove-btn" data-video-id="${item.videoId}" title="Remove">✕</button>
+      </div>
+    `;
+    container.appendChild(itemEl);
+  });
+
+  // Add event listeners
+  container.querySelectorAll(".playlist-remove-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      removeFromPlaylist(btn.dataset.videoId);
+      updatePlaylistButtons();
+    });
+  });
+
+  container.querySelectorAll(".playlist-play-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const item = playlist.find(p => p.videoId === btn.dataset.videoId);
+      if (item) window.open(item.url, "_blank");
+    });
+  });
+
+  // Update playlist count badge
+  const badge = document.getElementById("playlist-count");
+  if (badge) {
+    badge.textContent = playlist.length;
+    badge.style.display = playlist.length > 0 ? "inline-flex" : "none";
+  }
+}
+
+function updatePlaylistButtons() {
+  document.querySelectorAll(".add-playlist-btn").forEach(btn => {
+    const videoId = btn.dataset.videoId;
+    const inPlaylist = isInPlaylist(videoId);
+    btn.textContent = inPlaylist ? "✓ Added" : "+ Playlist";
+    btn.classList.toggle("in-playlist", inPlaylist);
+  });
+}
+
+function getSelectedVoice() {
+  if (!settings.voiceName) return null;
+  return availableVoices.find(v => v.name === settings.voiceName) || null;
+}
+
+function populateVoiceDropdowns() {
+  availableVoices = speechSynthesis.getVoices();
+
+  // Filter to English voices first, then add others
+  const englishVoices = availableVoices.filter(v => v.lang.startsWith('en'));
+  const otherVoices = availableVoices.filter(v => !v.lang.startsWith('en'));
+  const sortedVoices = [...englishVoices, ...otherVoices];
+
+  const voiceSelect = document.getElementById("voice-select");
+  const settingsVoice = document.getElementById("settings-voice");
+
+  const buildOptions = (select) => {
+    select.innerHTML = "";
+
+    // Add default option
+    const defaultOpt = document.createElement("option");
+    defaultOpt.value = "";
+    defaultOpt.textContent = "Default";
+    select.appendChild(defaultOpt);
+
+    // Add voice options
+    sortedVoices.forEach(voice => {
+      const opt = document.createElement("option");
+      opt.value = voice.name;
+      opt.textContent = `${voice.name} (${voice.lang})`;
+      if (voice.name === settings.voiceName) {
+        opt.selected = true;
+      }
+      select.appendChild(opt);
+    });
+  };
+
+  if (voiceSelect) buildOptions(voiceSelect);
+  if (settingsVoice) buildOptions(settingsVoice);
+}
+
 function speakText(text, id) {
   stopSpeech();
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = settings.speechRate;
+
+  const selectedVoice = getSelectedVoice();
+  if (selectedVoice) {
+    utterance.voice = selectedVoice;
+  }
+
   currentUtterance = utterance;
   currentReadingId = id;
 
@@ -346,6 +506,25 @@ function renderDigest() {
       actions.appendChild(playBtn);
       actions.appendChild(starBtn);
 
+      // Add playlist button for video items
+      if (item.videoId) {
+        const playlistBtn = document.createElement("button");
+        playlistBtn.className = "add-playlist-btn";
+        playlistBtn.dataset.videoId = item.videoId;
+        const inPlaylist = isInPlaylist(item.videoId);
+        playlistBtn.textContent = inPlaylist ? "✓ Added" : "+ Playlist";
+        playlistBtn.classList.toggle("in-playlist", inPlaylist);
+        playlistBtn.addEventListener("click", () => {
+          if (isInPlaylist(item.videoId)) {
+            removeFromPlaylist(item.videoId);
+          } else {
+            addToPlaylist(item);
+          }
+          updatePlaylistButtons();
+        });
+        actions.appendChild(playlistBtn);
+      }
+
       main.appendChild(title);
       main.appendChild(meta);
       main.appendChild(summary);
@@ -354,25 +533,28 @@ function renderDigest() {
       headerRow.appendChild(main);
       itemEl.appendChild(headerRow);
 
-      // Inline video only for Must-Watch Videos
+      // Video thumbnail with "Watch on YouTube" button for Must-Watch Videos
       if (section.title === "Must-Watch Videos" && item.videoId) {
         const videoWrapper = document.createElement("div");
         videoWrapper.className = "video-wrapper";
 
-        const iframe = document.createElement("iframe");
-        const params = new URLSearchParams({
-          rel: "0",
-          modestbranding: "1",
-          controls: "1",
-          autoplay: "0"
-        });
-        iframe.src = `https://www.youtube.com/embed/${item.videoId}?${params.toString()}`;
-        iframe.title = item.title;
-        iframe.allow =
-          "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
-        iframe.allowFullscreen = true;
+        const thumbnailLink = document.createElement("a");
+        thumbnailLink.href = item.url;
+        thumbnailLink.target = "_blank";
+        thumbnailLink.className = "video-thumbnail-link";
 
-        videoWrapper.appendChild(iframe);
+        const thumbnail = document.createElement("img");
+        thumbnail.src = `https://img.youtube.com/vi/${item.videoId}/mqdefault.jpg`;
+        thumbnail.alt = item.title;
+        thumbnail.className = "video-thumbnail";
+
+        const playOverlay = document.createElement("div");
+        playOverlay.className = "video-play-overlay";
+        playOverlay.innerHTML = "▶";
+
+        thumbnailLink.appendChild(thumbnail);
+        thumbnailLink.appendChild(playOverlay);
+        videoWrapper.appendChild(thumbnailLink);
         itemEl.appendChild(videoWrapper);
       }
 
@@ -392,6 +574,8 @@ function initUI() {
   speedSelect.value = String(settings.speechRate);
   speedSelect.addEventListener("change", () => {
     settings.speechRate = parseFloat(speedSelect.value);
+    const voiceRate = document.getElementById("voice-rate");
+    if (voiceRate) voiceRate.value = speedSelect.value;
     saveSettings();
   });
 
@@ -456,10 +640,85 @@ function initUI() {
     settings.theme = themeToggle.checked ? "dark" : "light";
     saveSettings();
   });
+
+  // Voice selection handlers
+  const voiceSelect = document.getElementById("voice-select");
+  const settingsVoice = document.getElementById("settings-voice");
+
+  voiceSelect.addEventListener("change", () => {
+    settings.voiceName = voiceSelect.value;
+    if (settingsVoice) settingsVoice.value = voiceSelect.value;
+    saveSettings();
+  });
+
+  settingsVoice.addEventListener("change", () => {
+    settings.voiceName = settingsVoice.value;
+    if (voiceSelect) voiceSelect.value = settingsVoice.value;
+    saveSettings();
+  });
+
+  // Tab switching
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const tabName = btn.dataset.tab;
+
+      // Update active tab button
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      // Update active tab content
+      document.querySelectorAll(".tab-content").forEach(content => {
+        content.classList.remove("active");
+      });
+      document.getElementById(tabName === "digest" ? "digest-container" : "playlist-container")
+        .classList.add("active");
+    });
+  });
+
+  // Side panel and popout buttons (only in popup, not in panel mode)
+  const sidePanelBtn = document.getElementById("side-panel-btn");
+  const popoutBtn = document.getElementById("popout-btn");
+
+  if (sidePanelBtn && !document.body.classList.contains("panel-mode")) {
+    sidePanelBtn.addEventListener("click", async () => {
+      try {
+        // Get current tab to get windowId
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab) {
+          await chrome.sidePanel.open({ windowId: tab.windowId });
+          window.close(); // Close popup after opening side panel
+        }
+      } catch (e) {
+        console.error("Failed to open side panel:", e);
+      }
+    });
+  }
+
+  if (popoutBtn && !document.body.classList.contains("panel-mode")) {
+    popoutBtn.addEventListener("click", () => {
+      chrome.runtime.sendMessage({ action: "openPopout" });
+      window.close(); // Close popup after opening popout
+    });
+  }
+
+  // Hide these buttons in panel mode
+  if (document.body.classList.contains("panel-mode")) {
+    if (sidePanelBtn) sidePanelBtn.style.display = "none";
+    if (popoutBtn) popoutBtn.style.display = "none";
+  }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
   await loadStorage();
   renderDigest();
+  renderPlaylist();
   initUI();
+
+  // Populate voice dropdowns when voices are available
+  if (speechSynthesis.getVoices().length > 0) {
+    populateVoiceDropdowns();
+  }
+  speechSynthesis.onvoiceschanged = () => {
+    populateVoiceDropdowns();
+  };
 });

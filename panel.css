@@ -1,0 +1,117 @@
+/* Panel mode overrides - responsive for side panel and popout window */
+
+body.panel-mode,
+body.panel-mode html {
+  width: 100%;
+  height: 100%;
+  min-width: 280px;
+  max-width: 100%;
+}
+
+body.panel-mode {
+  overflow: hidden;
+}
+
+body.panel-mode #app {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  min-height: 400px;
+}
+
+/* Responsive controls grid */
+@media (max-width: 340px) {
+  body.panel-mode .controls {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  body.panel-mode .primary-btn {
+    grid-column: span 2;
+  }
+
+  body.panel-mode .voice-controls {
+    grid-column: span 2;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  body.panel-mode .control-row {
+    justify-content: space-between;
+  }
+}
+
+/* Wider panels get more space */
+@media (min-width: 500px) {
+  body.panel-mode .section {
+    padding: var(--padding-lg);
+  }
+
+  body.panel-mode .item-title {
+    font-size: 13px;
+  }
+
+  body.panel-mode .item-summary {
+    font-size: 12px;
+  }
+
+  body.panel-mode #voice-select {
+    max-width: 200px;
+  }
+}
+
+/* Tall panels */
+@media (min-height: 800px) {
+  body.panel-mode .section {
+    margin-bottom: var(--padding-lg);
+  }
+
+  body.panel-mode .item {
+    padding: 12px 0;
+  }
+}
+
+/* Very narrow (side panel minimum) */
+@media (max-width: 300px) {
+  body.panel-mode .app-header h1 {
+    font-size: 14px;
+  }
+
+  body.panel-mode .footer-actions {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  body.panel-mode #voice-select {
+    max-width: 100px;
+  }
+
+  body.panel-mode .playlist-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  body.panel-mode .playlist-item-thumb {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+
+  body.panel-mode .playlist-item-actions {
+    width: 100%;
+    justify-content: flex-end;
+    margin-top: 6px;
+  }
+}
+
+/* Settings panel responsive */
+body.panel-mode .settings-panel {
+  width: min(260px, 80%);
+}
+
+@media (max-width: 350px) {
+  body.panel-mode .settings-panel {
+    width: 100%;
+    border-left: none;
+  }
+}
