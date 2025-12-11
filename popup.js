@@ -372,8 +372,8 @@ async function speakText(text, id) {
   // Ensure voices are available
   await ensureVoicesLoaded();
 
-  // Double-cancel to clear any stuck state
-  window.speechSynthesis.cancel();
+  // Small delay after cancel to let Chrome reset
+  await new Promise(resolve => setTimeout(resolve, 50));
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = settings.speechRate;
