@@ -366,18 +366,18 @@ function startSpeechWatchdog(expectedDuration) {
   }, timeout);
 }
 
-async function speakText(text, id) {
-  stopSpeech();
+function speakText(text, id) {
+  // Cancel any existing speech first
+  window.speechSynthesis.cancel();
+  clearSpeechWatchdog();
 
-  // Ensure voices are available
-  await ensureVoicesLoaded();
-
-  // Small delay after cancel to let Chrome reset
-  await new Promise(resolve => setTimeout(resolve, 50));
+  currentUtterance = null;
+  currentReadingId = null;
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = settings.speechRate;
 
+  // Get voice synchronously (voices should be pre-loaded on init)
   const selectedVoice = getSelectedVoice();
   if (selectedVoice) {
     utterance.voice = selectedVoice;
@@ -402,15 +402,17 @@ async function speakText(text, id) {
   };
 
   utterance.onerror = (event) => {
+    // Ignore "canceled" errors from intentional stops
+    if (event.error === "canceled") return;
+
     console.error("Speech error:", event.error);
     clearSpeechWatchdog();
-    // Try to recover
-    window.speechSynthesis.cancel();
     currentUtterance = null;
     currentReadingId = null;
     updateReadingHighlight();
   };
 
+  // Must be synchronous from user gesture - no awaits before this!
   window.speechSynthesis.speak(utterance);
 }
 
