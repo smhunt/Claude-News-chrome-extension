@@ -429,6 +429,14 @@ function stopSpeech() {
 // Clear any stuck speech state on init
 function initSpeechSynthesis() {
   window.speechSynthesis.cancel();
+
+  // Wake up Chrome's speech engine with a silent utterance
+  // This forces voice loading and primes the audio context
+  const wakeUp = new SpeechSynthesisUtterance("");
+  wakeUp.volume = 0;
+  window.speechSynthesis.speak(wakeUp);
+  window.speechSynthesis.cancel();
+
   // Pre-warm voices
   ensureVoicesLoaded().then(() => {
     populateVoiceDropdowns();
