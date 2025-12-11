@@ -325,8 +325,55 @@ function populateVoiceDropdowns() {
   if (settingsVoice) buildOptions(settingsVoice);
 }
 
-function speakText(text, id) {
+// Ensure voices are loaded before speaking
+function ensureVoicesLoaded() {
+  return new Promise((resolve) => {
+    const voices = speechSynthesis.getVoices();
+    if (voices.length > 0) {
+      resolve(voices);
+    } else {
+      speechSynthesis.onvoiceschanged = () => {
+        resolve(speechSynthesis.getVoices());
+      };
+      // Timeout fallback
+      setTimeout(() => resolve(speechSynthesis.getVoices()), 1000);
+    }
+  });
+}
+
+// Watchdog to detect stuck speech
+let speechWatchdog = null;
+
+function clearSpeechWatchdog() {
+  if (speechWatchdog) {
+    clearTimeout(speechWatchdog);
+    speechWatchdog = null;
+  }
+}
+
+function startSpeechWatchdog(expectedDuration) {
+  clearSpeechWatchdog();
+  // If speech takes longer than expected + 10 seconds, assume it's stuck
+  const timeout = Math.max(expectedDuration * 1000 + 10000, 15000);
+  speechWatchdog = setTimeout(() => {
+    if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+      console.warn("Speech watchdog: detected stuck speech, resetting...");
+      window.speechSynthesis.cancel();
+      currentUtterance = null;
+      currentReadingId = null;
+      updateReadingHighlight();
+    }
+  }, timeout);
+}
+
+async function speakText(text, id) {
   stopSpeech();
+
+  // Ensure voices are available
+  await ensureVoicesLoaded();
+
+  // Double-cancel to clear any stuck state
+  window.speechSynthesis.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = settings.speechRate;
@@ -342,7 +389,23 @@ function speakText(text, id) {
   // Visual highlight
   updateReadingHighlight();
 
+  // Estimate speech duration (rough: ~150 words per minute at 1x speed)
+  const wordCount = text.split(/\s+/).length;
+  const estimatedSeconds = (wordCount / 150) * 60 / settings.speechRate;
+  startSpeechWatchdog(estimatedSeconds);
+
   utterance.onend = () => {
+    clearSpeechWatchdog();
+    currentUtterance = null;
+    currentReadingId = null;
+    updateReadingHighlight();
+  };
+
+  utterance.onerror = (event) => {
+    console.error("Speech error:", event.error);
+    clearSpeechWatchdog();
+    // Try to recover
+    window.speechSynthesis.cancel();
     currentUtterance = null;
     currentReadingId = null;
     updateReadingHighlight();
@@ -352,12 +415,22 @@ function speakText(text, id) {
 }
 
 function stopSpeech() {
+  clearSpeechWatchdog();
   if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
     window.speechSynthesis.cancel();
   }
   currentUtterance = null;
   currentReadingId = null;
   updateReadingHighlight();
+}
+
+// Clear any stuck speech state on init
+function initSpeechSynthesis() {
+  window.speechSynthesis.cancel();
+  // Pre-warm voices
+  ensureVoicesLoaded().then(() => {
+    populateVoiceDropdowns();
+  });
 }
 
 function pauseSpeech() {
@@ -714,11 +787,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderPlaylist();
   initUI();
 
-  // Populate voice dropdowns when voices are available
-  if (speechSynthesis.getVoices().length > 0) {
-    populateVoiceDropdowns();
-  }
-  speechSynthesis.onvoiceschanged = () => {
-    populateVoiceDropdowns();
-  };
+  // Initialize speech synthesis (clears stuck state, pre-loads voices)
+  initSpeechSynthesis();
 });
