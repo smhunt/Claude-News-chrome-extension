@@ -123,10 +123,12 @@ const DIGEST_CONTENT = {
 const STORAGE_KEYS = {
   STARRED: "ccd_starred_items",
   SETTINGS: "ccd_settings",
-  PLAYLIST: "ccd_playlist"
+  PLAYLIST: "ccd_playlist",
+  READ_ITEMS: "ccd_read_items"
 };
 
 let starredItems = new Set();
+let readItems = new Set();
 let settings = {
   speechRate: 1.0,
   voiceName: "",
@@ -135,6 +137,10 @@ let settings = {
 
 // Playlist: array of video objects { id, title, videoId, url, addedAt }
 let playlist = [];
+
+// Speech queue for sequential playback
+let speechQueue = [];
+let isPlayingAll = false;
 
 let currentUtterance = null;
 let currentReadingId = null;
@@ -150,7 +156,7 @@ function loadStorage() {
       return;
     }
     chrome.storage.local.get(
-      [STORAGE_KEYS.STARRED, STORAGE_KEYS.SETTINGS, STORAGE_KEYS.PLAYLIST],
+      [STORAGE_KEYS.STARRED, STORAGE_KEYS.SETTINGS, STORAGE_KEYS.PLAYLIST, STORAGE_KEYS.READ_ITEMS],
       (res) => {
         if (Array.isArray(res[STORAGE_KEYS.STARRED])) {
           starredItems = new Set(res[STORAGE_KEYS.STARRED]);
@@ -160,6 +166,9 @@ function loadStorage() {
         }
         if (Array.isArray(res[STORAGE_KEYS.PLAYLIST])) {
           playlist = res[STORAGE_KEYS.PLAYLIST];
+        }
+        if (Array.isArray(res[STORAGE_KEYS.READ_ITEMS])) {
+          readItems = new Set(res[STORAGE_KEYS.READ_ITEMS]);
         }
         resolve();
       }
@@ -186,6 +195,76 @@ function savePlaylist() {
   chrome.storage.local.set({
     [STORAGE_KEYS.PLAYLIST]: playlist
   });
+}
+
+function saveReadItems() {
+  if (!chrome?.storage?.local) return;
+  chrome.storage.local.set({
+    [STORAGE_KEYS.READ_ITEMS]: Array.from(readItems)
+  });
+}
+
+function markAsRead(itemId) {
+  readItems.add(itemId);
+  saveReadItems();
+  updateReadIndicators();
+}
+
+function markAsUnread(itemId) {
+  readItems.delete(itemId);
+  saveReadItems();
+  updateReadIndicators();
+}
+
+function toggleReadState(itemId) {
+  if (readItems.has(itemId)) {
+    markAsUnread(itemId);
+  } else {
+    markAsRead(itemId);
+  }
+}
+
+function isRead(itemId) {
+  return readItems.has(itemId);
+}
+
+function updateReadIndicators() {
+  document.querySelectorAll(".item").forEach((el) => {
+    const id = el.getAttribute("data-id");
+    if (id && readItems.has(id)) {
+      el.classList.add("item-read");
+    } else {
+      el.classList.remove("item-read");
+    }
+  });
+
+  // Update read toggle buttons
+  document.querySelectorAll(".read-toggle-btn").forEach((btn) => {
+    const id = btn.dataset.id;
+    if (readItems.has(id)) {
+      btn.textContent = "●";
+      btn.title = "Mark as unread";
+    } else {
+      btn.textContent = "○";
+      btn.title = "Mark as read";
+    }
+  });
+
+  // Update unread count
+  updateUnreadCount();
+}
+
+function updateUnreadCount() {
+  let totalItems = 0;
+  DIGEST_CONTENT.sections.forEach(section => {
+    totalItems += section.items.length;
+  });
+  const unreadCount = totalItems - readItems.size;
+
+  const countEl = document.getElementById("unread-count");
+  if (countEl) {
+    countEl.textContent = unreadCount > 0 ? `${unreadCount} unread` : "All read";
+  }
 }
 
 function addToPlaylist(item) {
@@ -484,6 +563,112 @@ function collectAllSpeechText() {
   return bits.join(" ");
 }
 
+// Build queue of unread items for sequential playback
+function buildUnreadQueue() {
+  const queue = [];
+  for (const section of DIGEST_CONTENT.sections) {
+    for (const item of section.items) {
+      if (!readItems.has(item.id)) {
+        queue.push({
+          id: item.id,
+          text: buildItemSpeechText(section, item)
+        });
+      }
+    }
+  }
+  return queue;
+}
+
+// Play all unread items sequentially
+function playAllUnread() {
+  speechQueue = buildUnreadQueue();
+
+  if (speechQueue.length === 0) {
+    // All items are read - maybe play an announcement?
+    speakText("All items have been read.", "DONE");
+    return;
+  }
+
+  isPlayingAll = true;
+
+  // Add intro
+  const intro = `Claude Code digest for ${DIGEST_CONTENT.date}. ${speechQueue.length} unread items.`;
+  speakTextSequential(intro, "INTRO", () => {
+    playNextInQueue();
+  });
+}
+
+// Play next item in queue
+function playNextInQueue() {
+  if (!isPlayingAll || speechQueue.length === 0) {
+    isPlayingAll = false;
+    // Play outro
+    speakText("That's all for today's digest. Thanks for listening!", "OUTRO");
+    return;
+  }
+
+  const nextItem = speechQueue.shift();
+  speakTextSequential(nextItem.text, nextItem.id, () => {
+    // Mark as read when done
+    markAsRead(nextItem.id);
+    // Play next
+    playNextInQueue();
+  });
+}
+
+// Sequential speech with callback on completion
+function speakTextSequential(text, id, onComplete) {
+  window.speechSynthesis.cancel();
+  clearSpeechWatchdog();
+
+  currentUtterance = null;
+  currentReadingId = null;
+  currentSpeechText = text;
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = settings.speechRate;
+
+  const selectedVoice = getSelectedVoice();
+  if (selectedVoice) {
+    utterance.voice = selectedVoice;
+  }
+
+  currentUtterance = utterance;
+  currentReadingId = id;
+
+  updateReadingHighlight();
+
+  const wordCount = text.split(/\s+/).length;
+  const estimatedSeconds = (wordCount / 150) * 60 / settings.speechRate;
+  startSpeechWatchdog(estimatedSeconds);
+
+  utterance.onend = () => {
+    clearSpeechWatchdog();
+    currentUtterance = null;
+    currentReadingId = null;
+    updateReadingHighlight();
+    if (onComplete) onComplete();
+  };
+
+  utterance.onerror = (event) => {
+    if (event.error === "canceled") return;
+    console.error("Speech error:", event.error);
+    clearSpeechWatchdog();
+    currentUtterance = null;
+    currentReadingId = null;
+    updateReadingHighlight();
+  };
+
+  window.speechSynthesis.speak(utterance);
+}
+
+// Stop all playback including queue
+function stopAllPlayback() {
+  isPlayingAll = false;
+  speechQueue = [];
+  stopSpeech();
+}
+
 function updateReadingHighlight() {
   const allItems = document.querySelectorAll(".item");
   allItems.forEach((el) => {
@@ -570,7 +755,7 @@ function renderDigest() {
 
     for (const item of section.items) {
       const itemEl = document.createElement("div");
-      itemEl.className = "item";
+      itemEl.className = "item" + (readItems.has(item.id) ? " item-read" : "");
       itemEl.dataset.id = item.id;
 
       const headerRow = document.createElement("div");
@@ -632,8 +817,19 @@ function renderDigest() {
         saveStarred();
       });
 
+      // Read toggle button
+      const readToggleBtn = document.createElement("button");
+      readToggleBtn.className = "read-toggle-btn";
+      readToggleBtn.dataset.id = item.id;
+      readToggleBtn.textContent = readItems.has(item.id) ? "●" : "○";
+      readToggleBtn.title = readItems.has(item.id) ? "Mark as unread" : "Mark as read";
+      readToggleBtn.addEventListener("click", () => {
+        toggleReadState(item.id);
+      });
+
       actions.appendChild(playBtn);
       actions.appendChild(starBtn);
+      actions.appendChild(readToggleBtn);
 
       // Add playlist button for video items
       if (item.videoId) {
@@ -722,8 +918,7 @@ function initUI() {
   document
     .getElementById("play-all-btn")
     .addEventListener("click", () => {
-      const text = collectAllSpeechText();
-      speakText(text, "ALL");
+      playAllUnread();
     });
 
   document.getElementById("pause-btn").addEventListener("click", () => {
@@ -735,7 +930,7 @@ function initUI() {
   });
 
   document.getElementById("stop-btn").addEventListener("click", () => {
-    stopSpeech();
+    stopAllPlayback();
   });
 
   document.getElementById("refresh-btn").addEventListener("click", () => {
@@ -880,6 +1075,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderDigest();
   renderPlaylist();
   initUI();
+  updateUnreadCount();
 
   // Initialize speech synthesis (clears stuck state, pre-loads voices)
   initSpeechSynthesis();

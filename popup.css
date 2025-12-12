@@ -64,9 +64,23 @@ body {
   margin: 0 0 2px 0;
 }
 
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .date-text {
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.unread-count {
+  font-size: 10px;
+  color: var(--accent);
+  background: rgba(50, 184, 198, 0.15);
+  padding: 2px 6px;
+  border-radius: 10px;
 }
 
 .icon-btn {
@@ -384,10 +398,37 @@ body {
   background: rgba(255, 0, 0, 0.7);
 }
 
+/* Read/unread indicator */
+
+.item-read {
+  opacity: 0.5;
+}
+
+.item-read .item-title a {
+  color: var(--text-muted);
+}
+
+.read-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 50%;
+  transition: all 0.15s ease;
+}
+
+.read-toggle-btn:hover {
+  color: var(--accent);
+  background: rgba(50, 184, 198, 0.1);
+}
+
 /* Currently reading indicator */
 
 .item-reading {
   position: relative;
+  opacity: 1 !important;
 }
 
 .item-reading::before {
