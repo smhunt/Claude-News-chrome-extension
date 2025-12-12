@@ -511,6 +511,40 @@ function buildCopySummary() {
   return lines.join("\n");
 }
 
+function buildPodcastScript() {
+  const lines = [];
+
+  // Intro
+  lines.push(`Welcome to the Claude Code Digest for ${DIGEST_CONTENT.date}.`);
+  lines.push("Here's what's new in the world of Claude Code today.");
+  lines.push("");
+
+  for (let i = 0; i < DIGEST_CONTENT.sections.length; i++) {
+    const section = DIGEST_CONTENT.sections[i];
+
+    // Section intro
+    if (i === 0) {
+      lines.push(`Let's start with ${section.title}.`);
+    } else {
+      lines.push(`Next up, ${section.title}.`);
+    }
+    lines.push("");
+
+    // Items
+    for (const item of section.items) {
+      lines.push(`${item.title}.`);
+      lines.push(item.summary);
+      lines.push("");
+    }
+  }
+
+  // Outro
+  lines.push("That's all for today's Claude Code Digest.");
+  lines.push("Thanks for listening, and happy coding!");
+
+  return lines.join("\n");
+}
+
 // Render
 
 function renderDigest() {
@@ -715,6 +749,19 @@ function initUI() {
       await navigator.clipboard.writeText(buildCopySummary());
     } catch (e) {
       console.error("Copy failed", e);
+    }
+  });
+
+  document.getElementById("podcast-btn").addEventListener("click", async () => {
+    try {
+      // Build podcast script text
+      const podcastText = buildPodcastScript();
+      await navigator.clipboard.writeText(podcastText);
+
+      // Open TTS website
+      window.open("https://ttsmp3.com/", "_blank");
+    } catch (e) {
+      console.error("Podcast generation failed", e);
     }
   });
 
