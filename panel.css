@@ -4,8 +4,8 @@ body.panel-mode,
 body.panel-mode html {
   width: 100%;
   height: 100%;
-  min-width: 220px;
-  max-width: 100%;
+  min-width: 280px;
+  /* No max-width - allow stretching as large as needed */
 }
 
 body.panel-mode {
@@ -57,6 +57,38 @@ body.panel-mode #app {
 
   body.panel-mode #voice-select {
     max-width: 200px;
+  }
+
+  body.panel-mode .controls {
+    grid-template-columns: repeat(4, auto) 1fr;
+    justify-content: start;
+    gap: 8px;
+  }
+
+  body.panel-mode .primary-btn {
+    grid-column: span 1;
+  }
+
+  body.panel-mode .voice-controls {
+    grid-column: span 1;
+    margin-top: 0;
+  }
+}
+
+/* Extra wide - two column layout */
+@media (min-width: 700px) {
+  body.panel-mode #digest-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  body.panel-mode .section {
+    margin-bottom: 0;
+  }
+
+  body.panel-mode .app-header h1 {
+    font-size: 18px;
   }
 }
 
