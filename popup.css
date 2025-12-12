@@ -26,8 +26,8 @@ html,
 body {
   margin: 0;
   padding: 0;
-  width: 380px;
-  height: 600px;
+  width: 340px;
+  height: 540px;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);

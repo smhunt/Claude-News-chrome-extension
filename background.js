@@ -14,8 +14,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.windows.create({
       url: chrome.runtime.getURL("panel.html"),
       type: "popup",
-      width: 420,
-      height: 700,
+      width: 360,
+      height: 580,
       focused: true
     });
     sendResponse({ success: true });
@@ -47,8 +47,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     chrome.windows.create({
       url: chrome.runtime.getURL("panel.html"),
       type: "popup",
-      width: 420,
-      height: 700,
+      width: 360,
+      height: 580,
       focused: true
     });
   }
