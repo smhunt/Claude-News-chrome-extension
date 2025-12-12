@@ -130,8 +130,8 @@ const STORAGE_KEYS = {
 let starredItems = new Set();
 let readItems = new Set();
 let settings = {
-  speechRate: 1.0,
-  voiceName: "",
+  speechRate: 0.8,
+  voiceName: "Rocko",
   theme: "dark"
 };
 
