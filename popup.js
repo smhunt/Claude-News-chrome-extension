@@ -138,6 +138,7 @@ let playlist = [];
 
 let currentUtterance = null;
 let currentReadingId = null;
+let currentSpeechText = null; // Track text for restarting with new settings
 let availableVoices = [];
 
 // Helpers
@@ -373,6 +374,7 @@ function speakText(text, id) {
 
   currentUtterance = null;
   currentReadingId = null;
+  currentSpeechText = text; // Store for restart on settings change
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = settings.speechRate;
@@ -423,7 +425,17 @@ function stopSpeech() {
   }
   currentUtterance = null;
   currentReadingId = null;
+  currentSpeechText = null;
   updateReadingHighlight();
+}
+
+// Restart current speech with new settings (voice/speed change while playing)
+function restartSpeechWithNewSettings() {
+  if (currentSpeechText && (window.speechSynthesis.speaking || window.speechSynthesis.pending)) {
+    const text = currentSpeechText;
+    const id = currentReadingId;
+    speakText(text, id);
+  }
 }
 
 // Clear any stuck speech state on init
@@ -653,13 +665,24 @@ function initUI() {
   document.getElementById("last-updated").textContent =
     "Updated: " + DIGEST_CONTENT.date;
 
-  const speedSelect = document.getElementById("speed-select");
-  speedSelect.value = String(settings.speechRate);
-  speedSelect.addEventListener("change", () => {
-    settings.speechRate = parseFloat(speedSelect.value);
+  const speedSlider = document.getElementById("speed-slider");
+  const speedValue = document.getElementById("speed-value");
+  speedSlider.value = settings.speechRate;
+  speedValue.textContent = settings.speechRate.toFixed(1) + "x";
+
+  speedSlider.addEventListener("input", () => {
+    const rate = parseFloat(speedSlider.value);
+    settings.speechRate = rate;
+    speedValue.textContent = rate.toFixed(1) + "x";
+
+    // Sync with settings panel slider
     const voiceRate = document.getElementById("voice-rate");
-    if (voiceRate) voiceRate.value = speedSelect.value;
+    const settingsSpeedValue = document.getElementById("settings-speed-value");
+    if (voiceRate) voiceRate.value = rate;
+    if (settingsSpeedValue) settingsSpeedValue.textContent = rate.toFixed(1) + "x";
+
     saveSettings();
+    restartSpeechWithNewSettings();
   });
 
   document
@@ -712,11 +735,23 @@ function initUI() {
     settingsPanel.classList.add("hidden");
   });
 
-  voiceRate.addEventListener("change", () => {
+  const settingsSpeedValue = document.getElementById("settings-speed-value");
+  voiceRate.value = settings.speechRate;
+  if (settingsSpeedValue) settingsSpeedValue.textContent = settings.speechRate.toFixed(1) + "x";
+
+  voiceRate.addEventListener("input", () => {
     const rate = parseFloat(voiceRate.value);
     settings.speechRate = rate;
-    document.getElementById("speed-select").value = voiceRate.value;
+    if (settingsSpeedValue) settingsSpeedValue.textContent = rate.toFixed(1) + "x";
+
+    // Sync with main slider
+    const speedSlider = document.getElementById("speed-slider");
+    const speedValue = document.getElementById("speed-value");
+    if (speedSlider) speedSlider.value = rate;
+    if (speedValue) speedValue.textContent = rate.toFixed(1) + "x";
+
     saveSettings();
+    restartSpeechWithNewSettings();
   });
 
   themeToggle.addEventListener("change", () => {
@@ -732,12 +767,14 @@ function initUI() {
     settings.voiceName = voiceSelect.value;
     if (settingsVoice) settingsVoice.value = voiceSelect.value;
     saveSettings();
+    restartSpeechWithNewSettings();
   });
 
   settingsVoice.addEventListener("change", () => {
     settings.voiceName = settingsVoice.value;
     if (voiceSelect) voiceSelect.value = settingsVoice.value;
     saveSettings();
+    restartSpeechWithNewSettings();
   });
 
   // Tab switching
